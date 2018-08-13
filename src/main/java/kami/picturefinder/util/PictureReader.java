@@ -1,5 +1,10 @@
 package kami.picturefinder.util;
 
+import com.sun.image.codec.jpeg.JPEGCodec;
+import com.sun.image.codec.jpeg.JPEGImageEncoder;
+import kami.picturefinder.exception.ImageMatchingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +15,8 @@ import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -20,23 +27,25 @@ import java.util.List;
 @Component
 public class PictureReader {
 
+    private Logger logger = LoggerFactory.getLogger(PictureReader.class);
+
     /**目标文件夹*/
     @Value("${picture.directoryPath}")
     private String directoryPath;
 
     /**压缩后宽度*/
     @Value("${picture.compressWidth}")
-    private int compressWidth;
+    private static final int COMPRESS_WIDTH = 8;
 
     /**压缩后高度*/
     @Value("${picture.compressHeight}")
-    private int compressHeight;
+    private static final  int COMPRESS_HEIGHT = 8;
 
     /**合计像素点位数量*/
     //picture.compressWidth * picture.compressHeight
             // * environment.getProperty('picture.compressHeight', 'Integer.class')
-    @Value("#{environment.getProperty('picture.compressWidth', T(Integer)) * environment.getProperty('picture.compressHeight', T(Integer))}")
-    private BigDecimal countPixels;
+    /*@Value("#{environment.getProperty('picture.compressWidth', T(Integer)) * environment.getProperty('picture.compressHeight', T(Integer))}")
+    private BigDecimal countPixels;*/
 
     /**相同图片像素吻合百分比*/
     @Value("${picture.samePercent}")
@@ -46,8 +55,19 @@ public class PictureReader {
     @Value("${picture.similarPercent}")
     private double similarPercent;
 
+    /**生成缩略图地址*/
+    @Value("${picture.thumbnailPath}")
+    private String thumbnailPath;
+
+    /**是否为调试模式*/
+    @Value("${picture.debuggingModel}")
+    private boolean debuggingModel;
+
     //四舍五入并保留十六位小数
-    private final MathContext mc = new MathContext(16, RoundingMode.HALF_UP);
+    private static final MathContext mc = new MathContext(16, RoundingMode.HALF_UP);
+
+    /**图像后缀名*/
+    private static final String[] IMAGE_SUFFIX = new String[]{};
 
     /**
      * 获取文件集合
@@ -116,9 +136,9 @@ public class PictureReader {
         //获取图像类型
         int type = src.getType();
         //x轴比例
-        double sx = new BigDecimal(String.valueOf(compressWidth)).divide(new BigDecimal(String.valueOf(src.getWidth())), mc).doubleValue();
+        double sx = new BigDecimal(COMPRESS_WIDTH).divide(new BigDecimal(String.valueOf(src.getWidth())), mc).doubleValue();
         //y轴比例
-        double sy = new BigDecimal(String.valueOf(compressHeight)).divide(new BigDecimal(String.valueOf(src.getHeight())), mc).doubleValue();
+        double sy = new BigDecimal(COMPRESS_HEIGHT).divide(new BigDecimal(String.valueOf(src.getHeight())), mc).doubleValue();
         BufferedImage target;
         if(type == BufferedImage.TYPE_CUSTOM){
             //图像等于自定义类型
@@ -127,12 +147,12 @@ public class PictureReader {
             //判断图片是否透明
             boolean isAlpha = cm.isAlphaPremultiplied();
             //创建图像写入类
-            WritableRaster raster = cm.createCompatibleWritableRaster(compressWidth, compressHeight);
+            WritableRaster raster = cm.createCompatibleWritableRaster(COMPRESS_WIDTH, COMPRESS_HEIGHT);
             //重建图像缓冲区
             target = new BufferedImage(cm, raster, isAlpha, null);
         }else{
             //重建图像缓冲区
-            target = new BufferedImage(compressWidth, compressHeight, type);
+            target = new BufferedImage(COMPRESS_WIDTH, COMPRESS_HEIGHT, type);
         }
         //绘图类
         Graphics2D g = target.createGraphics();
@@ -160,11 +180,11 @@ public class PictureReader {
      * @return pixels 处理后的二维灰度数组
      */
     private int[][] obtainGrayArray(BufferedImage bufferedImage){
-        int[][] pixels = new int[compressWidth][compressHeight];
+        int[][] pixels = new int[COMPRESS_WIDTH][COMPRESS_HEIGHT];
         for (int i = 0; i < pixels.length; i++) {
             for (int j = 0; j < pixels[i].length; j++) {
                 //由RGB转为64级灰度
-                pixels[i][j] = rgbToGray(bufferedImage.getRGB(i, j));
+                pixels[i][j] = rgbToGray(bufferedImage.getRGB(j, i));
             }
         }
         return pixels;
@@ -195,7 +215,7 @@ public class PictureReader {
      * @see PictureReader#convertBufferedImageBulk(BufferedImage)
      * @return fingerPrint 目标图像图像指纹，长度为64的二进制整数
      */
-    private int produceFingerPrint(BufferedImage bufferedImage){
+    private long produceFingerPrint(BufferedImage bufferedImage) {
         //获取像素灰度平均值
         int[][] pixels = obtainGrayArray(bufferedImage);
         //获取灰度平均值
@@ -203,18 +223,65 @@ public class PictureReader {
         //游标
         int index = 0;
         //图像指纹
-        int fingerPrint = 0;
+        long fingerPrint = 0;
         for(int[] unidimensionalPixels: pixels){
             for (int twoDimensionalPixels : unidimensionalPixels) {
                 // 比较像素的灰度。将每个像素的灰度，与平均值进行比较。大于或等于平均值，记为1；小于平均值，记为0。
                 if(twoDimensionalPixels >= averagePixels){
                     // 将上一步的比较结果，组合在一起，就构成了一个64位的二进制整数，这就是这张图片的指纹。
                     // 图片指纹中数字拼接的组合次序并不重要，只要保证所有图片都采用同样次序就行了。
-                    fingerPrint += (1 << index++);
+                    fingerPrint += (1L << index++);
                 }
             }
         }
+        String thumbnailName = System.nanoTime() + ".jpg";
+        //调试模式打印图片
+        if(debuggingModel){
+            logger.debug("打印缩略图,路径为：{}{}{}", thumbnailPath, "/" , thumbnailName);
+            checkCalculatePixels(pixels, averagePixels, thumbnailName);
+            if(thumbnailPath == null){
+                throw new ImageMatchingException("缩略图文件夹不存在");
+            }
+            try {
+                // 保存处理后的文件
+                FileOutputStream out = new FileOutputStream(thumbnailPath + "/" + thumbnailName);
+                JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(out);
+                encoder.encode(bufferedImage);
+                out.close();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+                throw new ImageMatchingException("缩略图文件夹错误");
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new ImageMatchingException("缩略图生成失败");
+            }
+        }
+
         return fingerPrint;
+    }
+
+    /**
+     * 检验像素计算结果
+     * @param pixels 像素点位二维数组
+     * @param averagePixels 灰度平均值
+     * @param thumbnailName 缩略图名
+     * @see #produceFingerPrint(BufferedImage) 打印逻辑与该方法相同，生产图像指纹计算逻辑调整，当前方法须同步调整
+     */
+    private void checkCalculatePixels(int[][] pixels, int averagePixels, String thumbnailName){
+        //显示匹配结果缓冲区
+        StringBuilder showResultInfoBuilder = new StringBuilder(thumbnailName + "计算结果为：\r\n");
+        for(int[] unidimensionalPixels: pixels){
+            for (int twoDimensionalPixels : unidimensionalPixels) {
+                // 比较像素的灰度。将每个像素的灰度，与平均值进行比较。大于或等于平均值，显示为●；小于平均值，显示为○。
+                if(twoDimensionalPixels >= averagePixels){
+                    showResultInfoBuilder.append("●");
+                }else {
+                    showResultInfoBuilder.append("○");
+                }
+            }
+            showResultInfoBuilder.append("\r\n");
+        }
+        logger.info(showResultInfoBuilder.toString());
     }
 
     /**
@@ -225,9 +292,9 @@ public class PictureReader {
      * @param tarFingerPrint 目标图像指纹
      * @return 像素点重复数量
      */
-    private int compareFingerPrint(int srcFingerPrint, int tarFingerPrint){
+    private int compareFingerPrint(long srcFingerPrint, long tarFingerPrint){
         //进行异或运算，汉明距离即为二进制中1的个数
-        int compare = srcFingerPrint ^ tarFingerPrint;
+        long compare = srcFingerPrint ^ tarFingerPrint;
         //相同值统计
         int count = 0;
         while (compare != 0){
@@ -240,19 +307,31 @@ public class PictureReader {
     }
 
     /**
+     * 通过指定file对象获取图像指纹
+     * @param sourceImage 目标图片
+     * @return fingerPrint 图像指纹
+     * @see #produceFingerPrint(BufferedImage)
+     */
+    public long getFingerPrint(File sourceImage){
+        //获取图像缓冲区
+        BufferedImage bufferedImage = readBufferedImage(sourceImage);
+        return produceFingerPrint(bufferedImage);
+    }
+
+    /**
      * <p>图像指纹比对</p>
      * <prep>通过比对源图像与目标图像，统计图像指纹计算两者的汉明距离，
      * 统计匹配点位的数量</prep>
      * @param srcPicture 源图像文件
      * @param tarPicture 目标图像文件
-     * @see PictureReader#compareFingerPrint(int, int)
+     * @see PictureReader#compareFingerPrint(long, long)
      * @return 像素点重复数量
      */
     public int comparePictureDiff(File srcPicture, File tarPicture){
-        BufferedImage srcBufferedImage = readBufferedImage(srcPicture);
-        BufferedImage tarBufferedImage = readBufferedImage(tarPicture);
-        int srcFingerPrint = produceFingerPrint(srcBufferedImage);
-        int tarFingerPrint = produceFingerPrint(tarBufferedImage);
+        //源图像图像指纹
+        long srcFingerPrint = getFingerPrint(srcPicture);
+        //目标图像图像指纹
+        long tarFingerPrint = getFingerPrint(tarPicture);
         return compareFingerPrint(srcFingerPrint, tarFingerPrint);
     }
 
@@ -264,7 +343,9 @@ public class PictureReader {
      */
     public double samePixelPercent(File srcPicture, File tarPicture){
         int samePixelConut = comparePictureDiff(srcPicture, tarPicture);
-        return new BigDecimal(samePixelConut).divide(countPixels, mc).doubleValue();
+        //这里不需要使用bigDecimal高精度运算，百分比返回一个初略的值即可
+        return Math.round((double) samePixelConut / (COMPRESS_WIDTH * COMPRESS_HEIGHT) / 10000) * 100;
+                //new BigDecimal(samePixelConut).divide(countPixels, mc).doubleValue();
     }
 
 
