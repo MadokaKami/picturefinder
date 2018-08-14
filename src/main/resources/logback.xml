@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanPeriod="60 seconds" debug="true">
     <!-- 模块名称， 影响日志配置名，日志文件名 -->
-    <property name="appName" value="PersonalJiJin"/>
+    <property name="appName" value="imageFastMatching"/>
     <property name="logMaxSize" valule="100MB"/>
     <!--rootPath 日志路径，这里是相对路径，web项目eclipse下会输出到eclipse的安装目录下，如果部署到linux上的tomcat下，会输出到tomcat/bin目录 下 -->
-    <property name="rootPath" value="/home/localLogs"/>
     <contextName>${appName}</contextName>
     <!-- 存放日志文件的要路径 -->
-    <substitutionProperty name="LOG_HOME" value="${rootPath}" />
+    <substitutionProperty name="rootPath" value="/home/localLogs" />
 
     <!--控制台输出 -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
@@ -99,6 +98,7 @@
     <logger name="sql" level="INFO"/>
     <logger name="java.sql" level="INFO"/>
     <logger name="javax" level="INFO"/>
+    <logger name="kami.picturefinder" level="debug" />
 
     <!--日志的输出级别由低到高（越来问题越严重）trace->debug->info->warn->error -->
     <!-- root将级别为DEBUG及大于DEBUG的日志信息交给已经配置好的name='STDOUT'的appender处理，将信息打印到控制台-Console -->

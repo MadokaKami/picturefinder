@@ -1,8 +1,9 @@
-package kami.picturefinder.util;
+package kami.picturefinder.core;
 
 import com.sun.image.codec.jpeg.JPEGCodec;
 import com.sun.image.codec.jpeg.JPEGImageEncoder;
 import kami.picturefinder.exception.ImageMatchingException;
+import kami.picturefinder.util.PictureLoadUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,31 +22,30 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.List;
 
+/**
+ * <p>图片转换类</p>
+ * <prep>转换读取到的图片，获取图片指纹，比对图片指纹</prep>
+ * @ClassName ImageConverting
+ * @Date 2018/8/13 22:06
+ * @author 李英夫
+ * @version V1.0.0
+ * @Copyright (c) All Rights Reserved, 2018.
+ */
 @Component
-public class PictureReader {
+public class ImageConverting {
 
-    private Logger logger = LoggerFactory.getLogger(PictureReader.class);
+    /**压缩后宽度*/
+    private static final int COMPRESS_WIDTH = 8;
+
+    /**压缩后高度*/
+    private static final  int COMPRESS_HEIGHT = 8;
+
+    private Logger logger = LoggerFactory.getLogger(ImageConverting.class);
 
     /**目标文件夹*/
     @Value("${picture.directoryPath}")
     private String directoryPath;
-
-    /**压缩后宽度*/
-    @Value("${picture.compressWidth}")
-    private static final int COMPRESS_WIDTH = 8;
-
-    /**压缩后高度*/
-    @Value("${picture.compressHeight}")
-    private static final  int COMPRESS_HEIGHT = 8;
-
-    /**合计像素点位数量*/
-    //picture.compressWidth * picture.compressHeight
-            // * environment.getProperty('picture.compressHeight', 'Integer.class')
-    /*@Value("#{environment.getProperty('picture.compressWidth', T(Integer)) * environment.getProperty('picture.compressHeight', T(Integer))}")
-    private BigDecimal countPixels;*/
 
     /**相同图片像素吻合百分比*/
     @Value("${picture.samePercent}")
@@ -66,57 +66,27 @@ public class PictureReader {
     //四舍五入并保留十六位小数
     private static final MathContext mc = new MathContext(16, RoundingMode.HALF_UP);
 
-    /**图像后缀名*/
-    private static final String[] IMAGE_SUFFIX = new String[]{};
-
-    /**
-     * 获取文件集合
-     * @param path 目标文件夹或文件路径
-     * @return List<File> 文件集合
-     */
-    public List<File> getFiles(String path){
-        File directoryFile = new File(path);
-        return getFiles(directoryFile);
-    }
-
-    /**
-     * 获取文件集合
-     * @param directoryFile 目标文件夹或文件
-     * @return List<File> 文件集合
-     */
-    private List<File> getFiles(File directoryFile){
-        List<File> files = new ArrayList<>();
-        //文件夹下所有文件
-        if(directoryFile.isDirectory()){
-            File[] pictures = directoryFile.listFiles();
-            if(pictures != null){
-                for(File picture : pictures){
-                    if(picture.isDirectory()){
-                        files.addAll(getFiles(picture));
-                    }else{
-                        files.add(picture);
-                    }
-                }
-            }
-        }else {
-            files.add(directoryFile);
-        }
-        return files;
-    }
-
     /**
      * 获取对应文件图像缓冲区类
      * @param inputFile 输入文件
      * @return 图像缓冲区实例化对象
-     * @see PictureReader#readBufferedImage(File) 读取后需要对图像大小做转换
+     * @see ImageConverting#readBufferedImage(File) 读取后需要对图像大小做转换
      */
-    private BufferedImage readBufferedImage(File inputFile){
+    private BufferedImage readBufferedImage(File inputFile) throws ImageMatchingException {
         BufferedImage bufferedImage;
         try {
             bufferedImage = ImageIO.read(inputFile);
         } catch (IOException e) {
             bufferedImage = null;
             e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            bufferedImage = null;
+            e.printStackTrace();
+            logger.error("该图片中含有大量的元数据(注解数据),结构复杂，java端读取错误，图片地址为：{}",inputFile.getPath());
+        }
+        if(bufferedImage == null){
+            logger.error("发现读取失败的图像，图像地址为{}", inputFile.getPath());
+            throw new ImageMatchingException("图片错误");
         }
         return convertBufferedImageBulk(bufferedImage);
     }
@@ -156,70 +126,34 @@ public class PictureReader {
         }
         //绘图类
         Graphics2D g = target.createGraphics();
-        /****着色微调start****/
+        /**** 着色微调 start ****/
         //着色技术配置，设置为默认值
         g.setRenderingHint(RenderingHints.KEY_RENDERING,
                 RenderingHints.VALUE_RENDER_DEFAULT);
         //颜色着色技术配置，设置为最低
         g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING,
                 RenderingHints.VALUE_COLOR_RENDER_SPEED);
-        /****着色微调end****/
+        /**** 着色微调 end ****/
         //向缓冲区绘制
         g.drawRenderedImage(src, AffineTransform.getScaleInstance(sx, sy));
         g.dispose();
         return  target;
     }
 
-    /**
-     * <p>获取文件灰度数组</p>
-     * <prep>简化色彩,将缩小后的图片，转为64级灰度。
-     * 也就是说，所有像素点总共只有64种颜色。
-     * 传入参数<code>BufferedImage</code>宜经过:
-     * {@link PictureReader#convertBufferedImageBulk(BufferedImage)}处理</prep>
-     * @param bufferedImage 处理后的图片缓冲区
-     * @return pixels 处理后的二维灰度数组
-     */
-    private int[][] obtainGrayArray(BufferedImage bufferedImage){
-        int[][] pixels = new int[COMPRESS_WIDTH][COMPRESS_HEIGHT];
-        for (int i = 0; i < pixels.length; i++) {
-            for (int j = 0; j < pixels[i].length; j++) {
-                //由RGB转为64级灰度
-                pixels[i][j] = rgbToGray(bufferedImage.getRGB(j, i));
-            }
-        }
-        return pixels;
-    }
-
-    /**
-     * 获取像素灰度平均值
-     * @param pixels 灰度数组
-     * @return 灰度平均值
-     */
-    private int averagePixels(int[][] pixels){
-        int size = 0;
-        int countPixels = 0;
-        for(int[] unidimensionalPixels: pixels){
-            for (int twoDimensionalPixels : unidimensionalPixels) {
-                countPixels += twoDimensionalPixels;
-                size++;
-            }
-        }
-        return new BigDecimal(countPixels).divide(new BigDecimal(size), mc).intValue();
-    }
 
     /**
      * <p>生产图像指纹</p>
      * <prep>获取图像的灰度图像，并获取像素灰度平均值，将各像素点的灰度值与平均值比对，拼接图像指纹。
      * 组合的次序并不重要，但要保证所有图片都采用同样次序</prep>
      * @param bufferedImage 处理过的图像缓冲区类
-     * @see PictureReader#convertBufferedImageBulk(BufferedImage)
+     * @see ImageConverting#convertBufferedImageBulk(BufferedImage)
      * @return fingerPrint 目标图像图像指纹，长度为64的二进制整数
      */
-    private long produceFingerPrint(BufferedImage bufferedImage) {
+    private long produceFingerPrint(BufferedImage bufferedImage) throws ImageMatchingException {
         //获取像素灰度平均值
-        int[][] pixels = obtainGrayArray(bufferedImage);
+        int[][] pixels = PictureLoadUtil.obtainGrayArray(bufferedImage);
         //获取灰度平均值
-        int averagePixels = averagePixels(pixels);
+        int averagePixels = PictureLoadUtil.averagePixels(pixels);
         //游标
         int index = 0;
         //图像指纹
@@ -237,24 +171,7 @@ public class PictureReader {
         String thumbnailName = System.nanoTime() + ".jpg";
         //调试模式打印图片
         if(debuggingModel){
-            logger.debug("打印缩略图,路径为：{}{}{}", thumbnailPath, "/" , thumbnailName);
-            checkCalculatePixels(pixels, averagePixels, thumbnailName);
-            if(thumbnailPath == null){
-                throw new ImageMatchingException("缩略图文件夹不存在");
-            }
-            try {
-                // 保存处理后的文件
-                FileOutputStream out = new FileOutputStream(thumbnailPath + "/" + thumbnailName);
-                JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(out);
-                encoder.encode(bufferedImage);
-                out.close();
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-                throw new ImageMatchingException("缩略图文件夹错误");
-            } catch (IOException e) {
-                e.printStackTrace();
-                throw new ImageMatchingException("缩略图生成失败");
-            }
+            checkCalculatePixels(bufferedImage, pixels, averagePixels, thumbnailName);
         }
 
         return fingerPrint;
@@ -262,12 +179,32 @@ public class PictureReader {
 
     /**
      * 检验像素计算结果
+     * @deprecated 仅限于调试时使用，启动该方法后会大幅减慢程序运行速度
+     * @param bufferedImage 执行像素计算函数的图片缓冲区对象
      * @param pixels 像素点位二维数组
      * @param averagePixels 灰度平均值
      * @param thumbnailName 缩略图名
      * @see #produceFingerPrint(BufferedImage) 打印逻辑与该方法相同，生产图像指纹计算逻辑调整，当前方法须同步调整
      */
-    private void checkCalculatePixels(int[][] pixels, int averagePixels, String thumbnailName){
+    @Deprecated
+    private void checkCalculatePixels(BufferedImage bufferedImage, int[][] pixels, int averagePixels, String thumbnailName) throws ImageMatchingException {
+        logger.debug("打印缩略图,路径为：{}{}{}", thumbnailPath, "/" , thumbnailName);
+        if(thumbnailPath == null){
+            throw new ImageMatchingException("缩略图文件夹不存在");
+        }
+        try {
+            // 保存处理后的文件
+            FileOutputStream out = new FileOutputStream(thumbnailPath + "/" + thumbnailName);
+            JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(out);
+            encoder.encode(bufferedImage);
+            out.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            throw new ImageMatchingException("缩略图文件夹错误");
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new ImageMatchingException("缩略图生成失败");
+        }
         //显示匹配结果缓冲区
         StringBuilder showResultInfoBuilder = new StringBuilder(thumbnailName + "计算结果为：\r\n");
         for(int[] unidimensionalPixels: pixels){
@@ -312,7 +249,7 @@ public class PictureReader {
      * @return fingerPrint 图像指纹
      * @see #produceFingerPrint(BufferedImage)
      */
-    public long getFingerPrint(File sourceImage){
+    public long getFingerPrint(File sourceImage) throws ImageMatchingException {
         //获取图像缓冲区
         BufferedImage bufferedImage = readBufferedImage(sourceImage);
         return produceFingerPrint(bufferedImage);
@@ -324,14 +261,22 @@ public class PictureReader {
      * 统计匹配点位的数量</prep>
      * @param srcPicture 源图像文件
      * @param tarPicture 目标图像文件
-     * @see PictureReader#compareFingerPrint(long, long)
+     * @see ImageConverting#compareFingerPrint(long, long)
      * @return 像素点重复数量
      */
-    public int comparePictureDiff(File srcPicture, File tarPicture){
+    public int comparePictureDiff(File srcPicture, File tarPicture) {
         //源图像图像指纹
-        long srcFingerPrint = getFingerPrint(srcPicture);
+        long srcFingerPrint;
         //目标图像图像指纹
-        long tarFingerPrint = getFingerPrint(tarPicture);
+        long tarFingerPrint;
+        try {
+            srcFingerPrint = getFingerPrint(srcPicture);
+            tarFingerPrint = getFingerPrint(tarPicture);
+        }catch (ImageMatchingException e){
+            e.printStackTrace();
+            //图片读取失败，默认像素点重复数量为0
+            return 0;
+        }
         return compareFingerPrint(srcFingerPrint, tarFingerPrint);
     }
 
@@ -342,25 +287,10 @@ public class PictureReader {
      * @return samePixelPercent 像素点重复百分比
      */
     public double samePixelPercent(File srcPicture, File tarPicture){
-        int samePixelConut = comparePictureDiff(srcPicture, tarPicture);
+        int samePixelConut= comparePictureDiff(srcPicture, tarPicture);
         //这里不需要使用bigDecimal高精度运算，百分比返回一个初略的值即可
-        return Math.round((double) samePixelConut / (COMPRESS_WIDTH * COMPRESS_HEIGHT) / 10000) * 100;
+        return (double)Math.round((double) samePixelConut / (COMPRESS_WIDTH * COMPRESS_HEIGHT) * 10000) / 100;
                 //new BigDecimal(samePixelConut).divide(countPixels, mc).doubleValue();
-    }
-
-
-
-    /**
-     * rgb像素转64级灰度
-     * @param pixels rgb像素
-     * @return 灰度像素
-     */
-    private int rgbToGray(int pixels) {
-        // int _alpha = (pixels >> 24) & 0xFF;
-        int _red = (pixels >> 16) & 0xFF;
-        int _green = (pixels >> 8) & 0xFF;
-        int _blue = (pixels) & 0xFF;
-        return (int) (0.2989 * _red + 0.5870 * _green + 0.1140 * _blue);
     }
 
 }

@@ -8,7 +8,7 @@ package kami.picturefinder.exception;
  * @version V1.0.0
  * @Copyright (c) All Rights Reserved, 2018/8/13.
  */
-public class ImageMatchingException extends RuntimeException{
+public class ImageMatchingException extends Exception{
     /**
      * Constructs a new exception with {@code null} as its detail message.
      * The cause is not initialized, and may subsequently be initialized by a

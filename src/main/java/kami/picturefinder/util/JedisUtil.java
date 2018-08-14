@@ -10,7 +10,6 @@ import redis.clients.jedis.exceptions.JedisException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
 public class JedisUtil {
 
     @Value("${redisMaxTotal}")
@@ -46,6 +45,10 @@ public class JedisUtil {
 
     private static class RedisUtilHolder{
         private static final JedisUtil instance = new JedisUtil();
+    }
+
+    private JedisUtil jedisUtil(){
+        return null;
     }
 
     public static JedisUtil getInstance(){
