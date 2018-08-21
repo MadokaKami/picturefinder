@@ -1,46 +1,54 @@
 package kami.picturefinder.util;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.exceptions.JedisException;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
+/**
+ * @Description redis工具类
+ * @ClassName JedisUtil
+ * @author 李英夫
+ * @since 2018/8/20 18:04
+ * @version V1.0.0
+ * @Copyright (c) All Rights Reserved, 2018.
+ */
 public class JedisUtil {
 
-    @Value("${redisMaxTotal}")
+    @Value("${redis.maxTotal}")
     private int redisMaxTotal;
 
-    @Value("${redisMaxIdle}")
+    @Value("${redis.maxIdle}")
     private int redisMaxIdle;
 
-    @Value("${redisMinIdle}")
+    @Value("${redis.minIdle}")
     private int redisMinIdle;
 
-    @Value("${redisMaxWaitMillis}")
+    @Value("${redis.maxWaitMillis}")
     private long redisMaxWaitMillis;
 
-    @Value("${redisTestOnBorrow}")
+    @Value("${redis.testOnBorrow}")
     private boolean redisTestOnBorrow;
 
-    @Value("${redisTestOnReturn}")
+    @Value("${redis.testOnReturn}")
     private boolean redisTestOnReturn;
 
     //重试次数
-    @Value("${redisRetry}")
+    @Value("${redis.retry}")
     private int redisRetry;
 
-    @Value("${redisIp}")
+    @Value("${redis.ip}")
     private String defaultRedisIp;
 
-    @Value("${redisPort}")
+    @Value("${redis.port}")
     private int defaultRedisPort;
 
-    @Value("${redisPassword}")
+    @Value("${redis.password}")
     private String defaultRedisPassword;
 
     private static class RedisUtilHolder{

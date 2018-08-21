@@ -41,19 +41,14 @@ public class ImageConverting {
     /**压缩后高度*/
     private static final  int COMPRESS_HEIGHT = 8;
 
+    /**压缩后像素点数量*/
+    public static final int COMPRESS_AREA = COMPRESS_WIDTH * COMPRESS_HEIGHT;
+
     private Logger logger = LoggerFactory.getLogger(ImageConverting.class);
 
     /**目标文件夹*/
     @Value("${picture.directoryPath}")
     private String directoryPath;
-
-    /**相同图片像素吻合百分比*/
-    @Value("${picture.samePercent}")
-    private double samePercent;
-
-    /**相似图片像素吻合百分比*/
-    @Value("${picture.similarPercent}")
-    private double similarPercent;
 
     /**生成缩略图地址*/
     @Value("${picture.thumbnailPath}")
@@ -164,13 +159,16 @@ public class ImageConverting {
                 if(twoDimensionalPixels >= averagePixels){
                     // 将上一步的比较结果，组合在一起，就构成了一个64位的二进制整数，这就是这张图片的指纹。
                     // 图片指纹中数字拼接的组合次序并不重要，只要保证所有图片都采用同样次序就行了。
-                    fingerPrint += (1L << index++);
+                    fingerPrint += (1L << index);
                 }
+                //游标前移
+                index++;
             }
         }
         String thumbnailName = System.nanoTime() + ".jpg";
         //调试模式打印图片
         if(debuggingModel){
+            logger.debug("图像指纹为：{}", Long.toBinaryString(fingerPrint));
             checkCalculatePixels(bufferedImage, pixels, averagePixels, thumbnailName);
         }
 
@@ -221,27 +219,6 @@ public class ImageConverting {
         logger.info(showResultInfoBuilder.toString());
     }
 
-    /**
-     * <p>图像指纹比对</p>
-     * <prep>通过比对源图像与目标图像的图像指纹，计算两者的汉明距离，
-     * 统计匹配点位的数量</prep>
-     * @param srcFingerPrint 源图像指纹
-     * @param tarFingerPrint 目标图像指纹
-     * @return 像素点重复数量
-     */
-    private int compareFingerPrint(long srcFingerPrint, long tarFingerPrint){
-        //进行异或运算，汉明距离即为二进制中1的个数
-        long compare = srcFingerPrint ^ tarFingerPrint;
-        //相同值统计
-        int count = 0;
-        while (compare != 0){
-            if((compare & 1) != 0){
-                count++;
-            }
-            compare = compare >> 1;
-        }
-        return count;
-    }
 
     /**
      * 通过指定file对象获取图像指纹
@@ -261,7 +238,7 @@ public class ImageConverting {
      * 统计匹配点位的数量</prep>
      * @param srcPicture 源图像文件
      * @param tarPicture 目标图像文件
-     * @see ImageConverting#compareFingerPrint(long, long)
+     * @see PictureLoadUtil#compareFingerPrint(long, long)
      * @return 像素点重复数量
      */
     public int comparePictureDiff(File srcPicture, File tarPicture) {
@@ -277,20 +254,7 @@ public class ImageConverting {
             //图片读取失败，默认像素点重复数量为0
             return 0;
         }
-        return compareFingerPrint(srcFingerPrint, tarFingerPrint);
-    }
-
-    /**
-     * 图片同像素点占比
-     * @param srcPicture 源图像文件
-     * @param tarPicture 目标图像文件
-     * @return samePixelPercent 像素点重复百分比
-     */
-    public double samePixelPercent(File srcPicture, File tarPicture){
-        int samePixelConut= comparePictureDiff(srcPicture, tarPicture);
-        //这里不需要使用bigDecimal高精度运算，百分比返回一个初略的值即可
-        return (double)Math.round((double) samePixelConut / (COMPRESS_WIDTH * COMPRESS_HEIGHT) * 10000) / 100;
-                //new BigDecimal(samePixelConut).divide(countPixels, mc).doubleValue();
+        return PictureLoadUtil.compareFingerPrint(srcFingerPrint, tarFingerPrint);
     }
 
 }

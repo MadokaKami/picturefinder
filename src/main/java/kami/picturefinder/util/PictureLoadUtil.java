@@ -1,14 +1,13 @@
 package kami.picturefinder.util;
 
-import kami.picturefinder.core.ImageConverting;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.util.LinkedList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import kami.picturefinder.core.ImageConverting;
 
 /**
  * @Description 图片读取工具
@@ -129,5 +128,41 @@ public class PictureLoadUtil {
         int _green = (pixels >> 8) & 0xFF;
         int _blue = (pixels) & 0xFF;
         return (int) (0.2989 * _red + 0.5870 * _green + 0.1140 * _blue);
+    }
+
+    /**
+     * <p>图像指纹比对</p>
+     * <prep>通过比对源图像与目标图像的图像指纹，计算两者的汉明距离，
+     * 统计匹配点位的数量</prep>
+     * @param srcFingerPrint 源图像指纹
+     * @param tarFingerPrint 目标图像指纹
+     * @return 不匹配像素点数量
+     */
+    public static int compareFingerPrint(long srcFingerPrint, long tarFingerPrint){
+        //进行异或运算，汉明距离即为二进制中1的个数
+        long compare = srcFingerPrint ^ tarFingerPrint;
+        //相同值统计
+        int count = 0;
+        while (compare != 0){
+            //判断尾端数字
+            if((compare & 1) != 0){
+                count++;
+            }
+            compare = compare >>> 1;
+        }
+        return count;
+    }
+
+    /**
+     * 图片不同像素点占比
+     * @param srcFingerPrint 源图像指纹
+     * @param tarFingerPrint 目标图像指纹
+     * @return samePixelPercent 像素点重复百分比
+     */
+    public static double inequalityPixelPercent(long srcFingerPrint, long tarFingerPrint){
+        //汉明距离
+        int samePixelConut= compareFingerPrint(srcFingerPrint, tarFingerPrint);
+        //这里不需要使用bigDecimal高精度运算，百分比返回一个初略的值即可
+        return (double)Math.round((double) samePixelConut / (ImageConverting.COMPRESS_AREA) * 10000) / 100;
     }
 }
