@@ -12,15 +12,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import kami.picturefinder.entity.ContrastImageInfo;
 import kami.picturefinder.entity.ImageInfo;
 import kami.picturefinder.entity.SameImageInfo;
 import kami.picturefinder.exception.ImageMatchingException;
-import kami.picturefinder.util.JedisUtil;
 import kami.picturefinder.util.PictureLoadUtil;
-import redis.clients.jedis.Jedis;
 
 /**
  * @Description 图像核心处理
@@ -57,8 +57,11 @@ public class ImageCoreProcessor {
     @Autowired
     private ImageConverting imageConverting;
 
+    /*@Autowired
+    private JedisUtil jedisUtil;*/
+
     @Autowired
-    private JedisUtil jedisUtil;
+    private RedisTemplate<String, Object> redisTemplate;
 
     //private static final String JEDIS_FILE_KEY = "myFiles";
 
@@ -96,8 +99,9 @@ public class ImageCoreProcessor {
                 }
             }
         }
-        Jedis jedis = jedisUtil.getJedis();
-        jedis.hmset(saveRedisHashKey, fileMap);
+        /*Jedis jedis = jedisUtil.getJedis();
+        jedis.hmset(saveRedisHashKey, fileMap);*/
+        redisTemplate.opsForHash().putAll(saveRedisHashKey, fileMap);
     }
 
     /**
@@ -106,7 +110,8 @@ public class ImageCoreProcessor {
      * @return imageInfoLinkedList 图像指纹集合
      */
     private LinkedList<ContrastImageInfo> getAllFingerPrintForRedis(){
-        Jedis jedis = jedisUtil.getJedis();
+        //Jedis jedis = jedisUtil.getJedis();
+        HashOperations<String, String, String> hashOperations = redisTemplate.opsForHash();
         if(selRedisHashKey == null || selRedisHashKey.length() == 0){
             throw new IllegalArgumentException("查询图像指纹时redis键异常");
         }
@@ -115,7 +120,8 @@ public class ImageCoreProcessor {
         LinkedList<ContrastImageInfo> imageInfoLinkedList = new LinkedList<>();
         for(String redisHashKey: redisHashKeyArray){
             //从redis中获取图像指纹
-            Map<String, String> fingerPrintMap = jedis.hgetAll(redisHashKey);
+            Map<String, String> fingerPrintMap = hashOperations.entries(redisHashKey);
+                    //jedis.hgetAll(redisHashKey);
             //遍历set集合，将获取到的图片信息插入图片信息链表
             for(Map.Entry<String, String> entry : fingerPrintMap.entrySet()){
                 imageInfoLinkedList.push(new ContrastImageInfo(Long.valueOf(entry.getValue()),entry.getKey()));

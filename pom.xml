@@ -10,6 +10,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-version>4.3.16.RELEASE</spring-version>
+        <jackson-version>2.9.6</jackson-version>
     </properties>
 
     <dependencies>
@@ -84,6 +85,34 @@
             <version>RELEASE</version>
             <scope>compile</scope>
         </dependency>-->
+
+        <!-- https://mvnrepository.com/artifact/org.springframework.data/spring-data-redis -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
+            <version>1.7.11.RELEASE</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson-version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson-version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson-version}</version>
+        </dependency>
 
     </dependencies>
     <build>

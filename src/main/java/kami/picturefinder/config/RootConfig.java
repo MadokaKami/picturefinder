@@ -1,14 +1,17 @@
 package kami.picturefinder.config;
 
-import kami.picturefinder.util.JedisUtil;
-
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 
 @ComponentScan("kami.picturefinder")
 @Configuration
 @PropertySource(value = "classpath:init.properties", encoding = "UTF-8")
+@Import(RedisConfig.class)
 public class RootConfig {
 
     @Value("${freemarker.ftlpath}")
@@ -19,10 +22,10 @@ public class RootConfig {
         return new PropertySourcesPlaceholderConfigurer();
     }
 
-    @Bean
+    /*@Bean
     public JedisUtil jedisUtil(){
         return JedisUtil.getInstance();
-    }
+    }*/
 
     @Bean
     public freemarker.template.Configuration freemarkerConfig(){
