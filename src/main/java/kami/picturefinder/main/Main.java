@@ -1,7 +1,7 @@
 package kami.picturefinder.main;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.support.AbstractApplicationContext;
 
 import kami.picturefinder.config.RootConfig;
 import kami.picturefinder.core.ImageCoreProcessor;
@@ -18,12 +18,11 @@ import kami.picturefinder.freemarker.OutputExaminingExport;
 public class Main {
 
     public static void main(String[] args) {
-        AbstractApplicationContext applicationContext = new AnnotationConfigApplicationContext(RootConfig.class);
+        ApplicationContext applicationContext = new AnnotationConfigApplicationContext(RootConfig.class);
         ImageCoreProcessor imageCoreProcessor = (ImageCoreProcessor)applicationContext.getBean("imageCoreProcessor");
         imageCoreProcessor.pushFileInRedis();
         //List<SameImageInfo> sameImageInfoList = imageCoreProcessor.getAllSameImage();
         OutputExaminingExport outputExaminingExport = (OutputExaminingExport)applicationContext.getBean("outputExaminingExport");
         outputExaminingExport.printExaminingExport();
-        applicationContext.close();
     }
 }

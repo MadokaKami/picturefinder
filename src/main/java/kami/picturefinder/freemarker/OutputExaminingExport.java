@@ -15,8 +15,6 @@ import java.util.Map;
 
 import javax.swing.*;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -36,8 +34,6 @@ import kami.picturefinder.entity.SameImageInfo;
  */
 @Component
 public class OutputExaminingExport {
-
-    private Logger logger = LoggerFactory.getLogger(OutputExaminingExport.class);
 
     @Autowired
     private Configuration freemarkerConfig;
@@ -67,7 +63,6 @@ public class OutputExaminingExport {
     public void printExaminingExport(){
         //获取重复图像信息集合
         LinkedList<SameImageInfo> sameImageInfoList = imageCoreProcessor.getAllSameImage();
-        logger.info("图片匹配完成,共匹配出相同图片{}组,即将开始打印检测报告....",sameImageInfoList.size());
         int index = 0;
         List<SameImageInfo> sameImageInfoOutputList = new ArrayList<>(100);
         //集合过长，这里需要分开打印检测报告
