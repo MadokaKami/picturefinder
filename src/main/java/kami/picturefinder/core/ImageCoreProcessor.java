@@ -87,6 +87,8 @@ public class ImageCoreProcessor {
         double completePercentCache = 0;
         //执行次数
         int executeTitle = 0;
+        redisTemplate.watch(saveRedisHashKey);
+        redisTemplate.multi();
         while (fileList.size() > 0){
             File file = fileList.pop();
             try{
@@ -97,11 +99,17 @@ public class ImageCoreProcessor {
                 if(executeTitle++ % 30 == 0 && (completePercentCache != (completePercentCache = (double)Math.round((double) executeTitle / fileCount * 10000) / 100))){
                     logger.info("当前已转换完成{}%",completePercentCache);
                 }
+                redisTemplate.opsForHash().putAll(saveRedisHashKey, fileMap);
+                fileMap.clear();
             }
+        }
+        List<Object> execList = redisTemplate.exec();
+        if(execList == null){
+            throw new RuntimeException("键被修改，执行失败....");
         }
         /*Jedis jedis = jedisUtil.getJedis();
         jedis.hmset(saveRedisHashKey, fileMap);*/
-        redisTemplate.opsForHash().putAll(saveRedisHashKey, fileMap);
+
     }
 
     /**
@@ -115,6 +123,7 @@ public class ImageCoreProcessor {
         if(selRedisHashKey == null || selRedisHashKey.length() == 0){
             throw new IllegalArgumentException("查询图像指纹时redis键异常");
         }
+        logger.info("图片读取完成...");
         //图片信息链表
         String[] redisHashKeyArray = selRedisHashKey.split(",");
         LinkedList<ContrastImageInfo> imageInfoLinkedList = new LinkedList<>();
@@ -127,6 +136,7 @@ public class ImageCoreProcessor {
                 imageInfoLinkedList.push(new ContrastImageInfo(Long.valueOf(entry.getValue()),entry.getKey()));
             }
         }
+        logger.info("图片匹配完成...");
         return imageInfoLinkedList;
     }
 
